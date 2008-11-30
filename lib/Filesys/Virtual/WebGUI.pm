@@ -232,8 +232,17 @@ sub list_details {
 sub new {
     my ($class, $options) = @_;
     my $session = $options->{session};
-    my $root = $options->{root};
+    my $root = $options->{root_path};
     bless {_session => $session, _root=>$root, _cwd=>$root}, $class;
+}
+
+# root path
+sub root_path {
+    my ($self, $path) = @_;
+    if (defined $path) {
+        $self->{_root} = $path;
+    }
+    return $self->{_root};
 }
 
 # figure out the path
@@ -265,7 +274,7 @@ sub resolvePath {
         $actual = $self->cwd;
     }
     # is the new folder inside the root?
-    my $root = $self->{_root};
+    my $root = $self->root_path;
     if ($actual !~ m{^$root}) {
         $actual = undef;
     }
@@ -301,28 +310,18 @@ sub stat {
     return @stat unless defined $asset;
     return @stat unless $asset->canView;
 
-    # calculate mode
-    my @parts = qw(r w x r);
-    if ($asset->get('groupIdEdit') eq $asset->get('groupIdView')) {
-        push @parts, qw(w x);
-    }
-    else {
-        push @parts, qw(- x);
-    }
+    # calculate the mode
+    my $mode = 0700; # owner permission: rwx 
+    $mode += ($asset->get('groupIdEdit') eq $asset->get('groupIdView')) ?  070 :  050;   # group permission: rwx || r-x
+    # world file permission 
     if ($asset->get('groupIdEdit') eq '7') {
-        push @parts, qw(r w x);
-    }
+        $mode += 07;    # rwx
+    } 
     elsif ($asset->get('groupIdView') eq '7') {
-        push @parts, qw(r - x);
+        $mode += 05;    # r-x;
     }
-    else {
-        push @parts, qw(- - -);
-    }
-    my $mode = 0;
-    for my $part (@parts) {
-        $mode = ($mode << 1) | ($part eq '-' ? 0 : 1);
-    }
-    $mode += ($asset->isa('WebGUI::Asset::Wobject::Folder')) ? 0040000 : 0100000; # got from RFC1094
+    $mode += ($asset->isa('WebGUI::Asset::Wobject::Folder')) ? 0040000 : 0100000; # asset type: folder || file
+    $mode = sprintf("%#d",$mode);    # Convert octal to decimal
 
     # set stat properties
     @stat[0] = 0; # device number of filesystem

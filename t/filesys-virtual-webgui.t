@@ -38,7 +38,7 @@ my $guilty = $red->addChild({
     });
 
 # basics
-my $fs = Filesys::Virtual::WebGUI->new({session=>$session, root=>'/andy'});
+my $fs = Filesys::Virtual::WebGUI->new({session=>$session, root_path=>'/andy'});
 isa_ok($fs, 'Filesys::Virtual::WebGUI');
 ok(!$fs->login('xx','yy'), "invalid credentials");
 ok($fs->login('admin','123qwe'), 'valid credentials');
