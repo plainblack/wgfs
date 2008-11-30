@@ -1,5 +1,5 @@
 use lib '/data/WebGUI/lib', '/data/wgfs/lib', '/data/experimental/wgfs/lib';
-use Test::More tests=>80;
+use Test::More tests=>81;
 use Filesys::Virtual::WebGUI;
 use WebGUI::Session;
 use WebGUI::Asset;
@@ -68,7 +68,10 @@ is(JSON->new->decode($fh->getlines)->{title}, "Red is 'innocent'", "Can read a s
 ok($fs->close_read($fh), "Close a snippet.");
 is($fs->size('/andy'), $andy->get('assetSize'), "size()");
 is($fs->modtime('/andy'), $session->datetime->epochToHuman($andy->getContentLastModified, '%y%m%d%h%n%s'), "modtime()");
-is(scalar($fs->stat("/andy")), 13, "stat()");
+my @stat = $fs->stat("/andy");
+is(scalar(@stat), 13, "stat()");
+is($stat[2], 16877, "stat() produces a good mode");
+
 
 # writes
 $fh = $fs->open_write("/andy/rita.jpg");

@@ -301,42 +301,33 @@ sub stat {
     return @stat unless defined $asset;
     return @stat unless $asset->canView;
 
-    # the next 20 lines or so are because i don't know how to calculate the number for mode
-    my $mode = ($asset->isa('WebGUI::Asset::Wobject::Folder')) ? 'd' : '-';
-    $mode .= "rwx";
+    # calculate mode
+    my @parts = qw(r w x r);
     if ($asset->get('groupIdEdit') eq $asset->get('groupIdView')) {
-        $mode .= "rwx";
+        push @parts, qw(w x);
     }
     else {
-        $mode .= "r-x";
+        push @parts, qw(- x);
     }
     if ($asset->get('groupIdEdit') eq '7') {
-        $mode .= "rwx";
+        push @parts, qw(r w x);
     }
     elsif ($asset->get('groupIdView') eq '7') {
-        $mode .= "r-x";
+        push @parts, qw(r - x);
     }
     else {
-        $mode .= "---";
+        push @parts, qw(- - -);
     }
-    my %modes = (
-        "-rwxr-x---" => 33256,
-        "drwxr-x---" => 16872,
-        "-rwxr-xr-x" => 33261,
-        "drwxr-xr-x" => 16877,
-        "-rwxrwx---" => 33272,
-        "drwxrwx---" => 16888,
-        "-rwxrwxr-x" => 33277,
-        "drwxrwxr-x" => 16893,
-        "-rwxrwxrwx" => 33279,
-        "drwxrwxrwx" => 16895,
-    );
-    my $modeNumber = $modes{$mode};
+    my $mode = 0;
+    for my $part (@parts) {
+        $mode = ($mode << 1) | ($part eq '-' ? 0 : 1);
+    }
+    $mode += ($asset->isa('WebGUI::Asset::Wobject::Folder')) ? 0040000 : 0100000; # got from RFC1094
 
     # set stat properties
     @stat[0] = 0; # device number of filesystem
     @stat[1] = 0; # inode number
-    @stat[2] = $modeNumber; # file mode  (type and permissions)
+    @stat[2] = $mode; # file mode  (type and permissions)
     @stat[3] = 1; # number of (hard) links to the file
     @stat[4] = 0; # numeric user ID of file's owner
     @stat[5] = 0; # numeric group ID of file's owner
