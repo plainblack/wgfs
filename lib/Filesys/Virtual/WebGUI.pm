@@ -17,6 +17,7 @@ use WebGUI::Group;
 
 sub login {
     my ($self, $username, $password) = @_;
+    $self->session->log->info("login('$username','xxxxxx')");
     my $session = $self->session;
     my $log = $session->log; 
     $log->info("Authenticating $username for VFS");
@@ -51,6 +52,7 @@ sub login {
 
 sub size {
     my ($self, $path) = @_;
+    $self->session->log->info("size('$path')");
     my $asset = $self->resolvePath($path, 1);
     if (defined $asset && $asset->canView) {
         return $asset->get('assetSize');
@@ -62,6 +64,7 @@ sub size {
 
 sub chmod {
     my ($self, $mode, $fn) = @_;
+    $self->session->log->info("chmod('$fn')");
     return 0;    
 }
 
@@ -69,6 +72,7 @@ sub chmod {
 
 sub modtime {
     my ($self, $path) = @_;
+    $self->session->log->info("modtime('$path')");
     my $asset = $self->resolvePath($path, 1);
     if (defined $asset && $asset->canView) {
         return $self->session->datetime->epochToHuman($asset->getContentLastModified, '%y%m%d%h%n%s');
@@ -80,6 +84,7 @@ sub modtime {
 
 sub delete {
     my ($self, $path) = @_;
+    $self->session->log->info("delete('$path')");
     my $asset = $self->resolvePath($path, 1);
     if (defined $asset && $asset->canEdit) {
         $asset->trash;
@@ -92,6 +97,7 @@ sub delete {
 
 sub cwd {
     my ($self, $newDir) = @_;
+    $self->session->log->info("cwd()");
     $self->chdir($newDir) if (defined $newDir);
     return $self->{_cwd};
 }
@@ -100,6 +106,7 @@ sub cwd {
 
 sub chdir {
     my ($self, $newDir) = @_;
+    $self->session->log->info("chdir('$newDir')");
     $newDir = $self->resolvePath($newDir);
     if (defined $newDir) {
         my $asset = $self->resolvePath($newDir, 1);
@@ -115,6 +122,7 @@ sub chdir {
 
 sub mkdir {
     my ($self, $path) = @_;
+    $self->session->log->info("mkdir('$path')");
     $path = $self->resolvePath($path);
     my $basePath = $path;
     $basePath =~ s{(.*)\/.*$}{$1}xms; # remove the last node
@@ -138,6 +146,7 @@ sub mkdir {
 
 sub rmdir {
     my ($self, $path) = @_;
+    $self->session->log->info("rmdir('$path')");
     return $self->delete($path);
 }
 
@@ -145,6 +154,7 @@ sub rmdir {
 
 sub list {
     my ($self, $path) = @_;
+    $self->session->log->info("list('$path')");
     my $base = $self->resolvePath($path, 1);
     my @assets;
     if (defined $base && $base->canView) {
@@ -163,6 +173,7 @@ sub list {
 
 sub list_details {
     my ($self, $path) = @_;
+    $self->session->log->info("list_details('$path')");
     my $base = $self->resolvePath($path, 1);
     my @assets;
     if (defined $base && $base->canView) {
@@ -233,6 +244,7 @@ sub new {
     my ($class, $options) = @_;
     my $session = $options->{session};
     my $root = $options->{root_path};
+    $session->log->info("Instantiated VFS driver with root of $root");
     bless {_session => $session, _root=>$root, _cwd=>$root}, $class;
 }
 
@@ -240,8 +252,10 @@ sub new {
 sub root_path {
     my ($self, $path) = @_;
     if (defined $path) {
+        $self->session->log->info("Setting root path to $path");
         $self->{_root} = $path;
     }
+    $self->session->log->info("Fetching root path.");
     return $self->{_root};
 }
 
@@ -249,6 +263,8 @@ sub root_path {
 
 sub resolvePath {
     my ($self, $requested, $returnAsset) = @_;
+    my $log = $self->session->log;
+    $log->info("resolvePath('$requested')");
     
     ## sanitize
     # remove a trailing /
@@ -278,19 +294,30 @@ sub resolvePath {
     if ($actual !~ m{^$root}) {
         $actual = undef;
     }
+    $log->info("Path $requested resolves to $actual");
 
     ## what to return
     # return an asset
     if ($returnAsset && defined $actual) {
+        $log->info("Locating asset for $actual");
         # lets see if we can save some time
         if ($self->{_lastAssetUrl} eq $actual) { 
+            $log->info("Using asset from cache for $actual");
             return $self->{_lastAsset};
         }
-        $self->{_lastAsset} = WebGUI::Asset->newByUrl($self->session, $actual);
+        my $asset = $self->{_lastAsset} = WebGUI::Asset->newByUrl($self->session, $actual);
+        if (defined $asset && $asset->isa('WebGUI::Asset')) {
+            $log->info("Found a ".$asset->get('className')." for $actual");
+        }
+        else {
+            $log->info("Couldn't find an asset for $actual");
+        }
         $self->{_lastAsstUrl} = $actual;
+        $log->info("Returning asset for $actual");
         return $self->{_lastAsset};
     }
     # return the full path
+    $log->info("Returning resolved path $actual");
     return $actual;
 }
 
@@ -305,6 +332,7 @@ sub session {
 
 sub stat {
     my ($self, $file) = @_;
+    $self->session->log->info("stat('$file')");
     my $asset = $self->resolvePath($file, 1);
     my @stat;
     return @stat unless defined $asset;
@@ -378,37 +406,38 @@ sub stat {
 
 sub test {
     my ($self, $test, $fn) = @_;
+    $self->session->log->info("test('$test', '$fn')");
     my $asset = $self->resolvePath($fn,1);
     return 0 unless defined $asset; # -e
     return 0 unless $asset->canView;
-    if ($test eq '-e') {
+    if ($test eq 'e') {
         return 1;
     } 
-    elsif (isIn($test, qw(-s -z))) {
+    elsif (isIn($test, qw(s z))) {
         return $asset->get('assetSize');
     } 
-    elsif (isIn($test, qw(-r -x -R -X))) {
+    elsif (isIn($test, qw(r x R X))) {
         return $asset->canView;
     } 
-    elsif (isIn($test, qw(-w -W))) {
+    elsif (isIn($test, qw(w W))) {
         return $asset->canEdit;
     } 
-    elsif (isIn($test, qw(-o -O))) {
+    elsif (isIn($test, qw(o O))) {
         return $asset->get('ownerUserId') eq $self->session->user->userId;
     } 
-    elsif ($test eq '-f') {
+    elsif ($test eq 'f') {
         return !$asset->isa('WebGUI::Asset::Wobject::Folder');
     } 
-    elsif ($test eq '-d') {
+    elsif ($test eq 'd') {
         return $asset->isa('WebGUI::Asset::Wobject::Folder');
     } 
-    elsif ($test eq '-B') {
+    elsif ($test eq 'B') {
         return $asset->isa('WebGUI::Asset::File');
     } 
-    elsif ($test eq '-T') {
+    elsif ($test eq 'T') {
         return $asset->isa('WebGUI::Asset::Snippet');
     } 
-    elsif (isIn($test, qw(-M -A -C))) {
+    elsif (isIn($test, qw(M A C))) {
         return ((time() - $asset->getContentLastModified) / (60 * 60 * 24));
     } 
     return 0; # -l -p -S -b -c -t -u -g -k
@@ -418,6 +447,7 @@ sub test {
 
 sub open_read {
     my ($self, $path, @opts) = @_;
+    $self->session->log->info("open_read('$path')");
     my $asset = $self->resolvePath($path, 1);
     if (defined $asset && $asset->canView) {
         if ($asset->isa('WebGUI::Asset::File')) {
@@ -436,6 +466,7 @@ sub open_read {
 
 sub close_read {
     my ($self, $fh) = @_;
+    $self->session->log->info("close_read()");
     return $fh->close;
 }
 
@@ -443,6 +474,7 @@ sub close_read {
 
 sub open_write {
     my ($self, $path, $append) = @_;
+    $self->session->log->info("open_write('$path')");
     my $asset = $self->resolvePath($path, 1);
     # update an existing asset
     if (defined $asset) {
@@ -548,6 +580,7 @@ sub open_write {
 
 sub close_write {
     my ($self, $fh) = @_;
+    $self->session->log->info("close_write()");
     if ($fh->isa('IO::Scalar')) {
         seek($fh, 0, 0);
         my $path = $fh->getline;
@@ -573,6 +606,7 @@ sub close_write {
 
 sub seek {
     my ($self, $fh, $first, $second) = @_;
+    $self->session->log->info("seek()");
     return seek($fh, $first, $second);
 }
 
@@ -580,6 +614,7 @@ sub seek {
 
 sub utime {
     my ($self, $atime, $mtime, @fn) = @_;
+    $self->session->log->info("utime()");
     my $counter = 0;
     foreach my $path (@fn) {
         my $asset = $self->resolvePath($path, 1);

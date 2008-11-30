@@ -18,7 +18,7 @@ use strict;
 use Apache2::Const -compile => qw(OK DECLINED NOT_FOUND);
 
 use Apache2::WebDAV;
-use Filesys::Virtual::Plain;
+use Filesys::Virtual::WebGUI;
 
 =head1 NAME
 
@@ -48,25 +48,27 @@ The Apache request handler for this package.
 =cut
 
 sub handler {
-    my ($r, $server, $config) = @_;
+    my ($request, $server, $config) = @_;
+    my $session = $request->pnotes('wgSession');
+    unless (defined $session) {
+        $session = WebGUI::Session->open($server->dir_config('WebguiRoot'), $config->getFilename, $request, $server);
+    }
     
     my $dav = new Apache2::WebDAV();
-
-    my @handlers = (
-        {
-            path   => '/Downloads',
-            module => 'Filesys::Virtual::Plain',
-            args   => {
-                root_path => '/Users/doug',
-            }
-        }
-    );
+    my @handlers = ( {
+        path   => '/files',
+        module => 'Filesys::Virtual::WebGUI',
+        args   => {
+            session => $session,
+            root_path => '/files',
+        },
+    });
     
     $dav->register_handlers(@handlers);
 
-    $r->push_handlers( PerlResponseHandler => sub {
-        $dav->process( $r );
-    } );
+    $request->push_handlers( PerlResponseHandler => sub {
+        $dav->process( $request );
+    });
 
     return Apache2::Const::DECLINED;
 }
