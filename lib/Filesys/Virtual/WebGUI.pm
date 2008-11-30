@@ -455,7 +455,7 @@ sub open_read {
             return IO::File->new($pathtofile,@opts);
         }
         else {
-            my $json = JSON->new->encode($asset->get);
+            my $json = JSON->new->pretty->encode($asset->get);
             return IO::Scalar->new(\$json);
         }
     }
