@@ -295,11 +295,59 @@ sub session {
 # stat: Perform a stat on a given file
 
 sub stat {
-    my ($self, $fn) = @_;
-    
-    die ref($self)."::stat() Unimplemented";
-    
-    return undef;
+    my ($self, $file) = @_;
+    my $asset = $self->resolvePath($file, 1);
+    my @stat;
+    return @stat unless defined $asset;
+    return @stat unless $asset->canView;
+
+    # the next 20 lines or so are because i don't know how to calculate the number for mode
+    my $mode = ($asset->isa('WebGUI::Asset::Wobject::Folder')) ? 'd' : '-';
+    $mode .= "rwx";
+    if ($asset->get('groupIdEdit') eq $asset->get('groupIdView')) {
+        $mode .= "rwx";
+    }
+    else {
+        $mode .= "r-x";
+    }
+    if ($asset->get('groupIdEdit') eq '7') {
+        $mode .= "rwx";
+    }
+    elsif ($asset->get('groupIdView') eq '7') {
+        $mode .= "r-x";
+    }
+    else {
+        $mode .= "---";
+    }
+    my %modes = (
+        "-rwxr-x---" => 33256,
+        "drwxr-x---" => 16872,
+        "-rwxr-xr-x" => 33261,
+        "drwxr-xr-x" => 16877,
+        "-rwxrwx---" => 33272,
+        "drwxrwx---" => 16888,
+        "-rwxrwxr-x" => 33277,
+        "drwxrwxr-x" => 16893,
+        "-rwxrwxrwx" => 33279,
+        "drwxrwxrwx" => 16895,
+    );
+    my $modeNumber = $modes{$mode};
+
+    # set stat properties
+    @stat[0] = 0; # device number of filesystem
+    @stat[1] = 0; # inode number
+    @stat[2] = $modeNumber; # file mode  (type and permissions)
+    @stat[3] = 1; # number of (hard) links to the file
+    @stat[4] = 0; # numeric user ID of file's owner
+    @stat[5] = 0; # numeric group ID of file's owner
+    @stat[6] = 0; # the device identifier (special files only)
+    @stat[7] = $asset->get('assetSize'); # total size of file, in bytes
+    @stat[8] = $asset->getContentLastModified; # last access time in seconds since the epoch
+    @stat[9] = $stat[8]; # last modify time in seconds since the epoch
+    @stat[10] = $asset->get('creationDate'); # inode change time in seconds since the epoch
+    @stat[11] = 4096; # preferred block size for file system I/O
+    @stat[12] = sprintf('%.0f',($stat[7] / $stat[11])); # actual number of blocks allocated
+    return @stat;
 }
 
 # test: Perform a given filesystem test
@@ -340,10 +388,13 @@ sub stat {
 
 sub test {
     my ($self, $test, $fn) = @_;
-    my $asset = $self->resolvePath($fn);
+    my $asset = $self->resolvePath($fn,1);
     return 0 unless defined $asset; # -e
     return 0 unless $asset->canView;
-    if (isIn($test, qw(-s -z))) {
+    if ($test eq '-e') {
+        return 1;
+    } 
+    elsif (isIn($test, qw(-s -z))) {
         return $asset->get('assetSize');
     } 
     elsif (isIn($test, qw(-r -x -R -X))) {
@@ -368,7 +419,7 @@ sub test {
         return $asset->isa('WebGUI::Asset::Snippet');
     } 
     elsif (isIn($test, qw(-M -A -C))) {
-        return $asset->getContentLastModified / 60 * 60 * 24;
+        return ((time() - $asset->getContentLastModified) / (60 * 60 * 24));
     } 
     return 0; # -l -p -S -b -c -t -u -g -k
 }

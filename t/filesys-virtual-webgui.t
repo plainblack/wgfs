@@ -1,5 +1,5 @@
 use lib '/data/WebGUI/lib', '/data/wgfs/lib', '/data/experimental/wgfs/lib';
-use Test::More tests=>37;
+use Test::More tests=>80;
 use Filesys::Virtual::WebGUI;
 use WebGUI::Session;
 use WebGUI::Asset;
@@ -68,6 +68,7 @@ is(JSON->new->decode($fh->getlines)->{title}, "Red is 'innocent'", "Can read a s
 ok($fs->close_read($fh), "Close a snippet.");
 is($fs->size('/andy'), $andy->get('assetSize'), "size()");
 is($fs->modtime('/andy'), $session->datetime->epochToHuman($andy->getContentLastModified, '%y%m%d%h%n%s'), "modtime()");
+is(scalar($fs->stat("/andy")), 13, "stat()");
 
 # writes
 $fh = $fs->open_write("/andy/rita.jpg");
@@ -102,6 +103,57 @@ is($floyd->get('title'), 'floyd', "mkdir() makes a good title");
 is($fs->utime(0,0, qw(/andy/red /andy/innocent)), 2, "utime()");
 
 # test() tests
+$haywood->update({ownerUserId=>'1',groupIdView=>'1',groupIdEdit=>'3'});
+$floyd->update({ownerUserId=>'3',groupIdView=>'3',groupIdEdit=>'3'});
+$session->user({userId=>1});
+ok($fs->test('-r', '/andy'), '-r test success');
+ok(!$fs->test('-r', '/andy/red/floyd'), '-r test fail');
+ok($fs->test('-w', '/andy/red/haywood'), '-w test success');
+ok(!$fs->test('-w', '/andy/red/floyd'), '-w test fail');
+ok($fs->test('-x', '/andy'), '-x test success');
+ok(!$fs->test('-x', '/andy/red/floyd'), '-x test fail');
+ok($fs->test('-o', '/andy/red/haywood'), '-o test success');
+ok(!$fs->test('-o', '/andy/red'), '-o test fail');
+ok($fs->test('-R', '/andy'), '-R test success');
+ok(!$fs->test('-R', '/andy/red/floyd'), '-R test fail');
+ok($fs->test('-W', '/andy/red/haywood'), '-W test success');
+ok(!$fs->test('-W', '/andy/red/floyd'), '-W test fail');
+ok($fs->test('-X', '/andy'), '-X test success');
+ok(!$fs->test('-X', '/andy/red/floyd'), '-X test fail');
+ok($fs->test('-O', '/andy/red/haywood'), '-O test success');
+ok(!$fs->test('-O', '/andy/red'), '-O test fail');
+ok($fs->test('-e', '/andy'), '-e test success');
+ok(!$fs->test('-e', '/andy/fresh-fish'), '-e test fail');
+cmp_ok($fs->test('-z', '/andy'), '>', 0, '-z test success');
+is($fs->test('-z', '/andy/fresh-fish'), 0, '-z test fail');
+cmp_ok($fs->test('-s', '/andy'), '>', 0, '-s test success');
+is($fs->test('-s', '/andy/fresh-fish'), 0, '-s test fail');
+ok($fs->test('-f', '/andy/innocent'), '-f test success');
+ok(!$fs->test('-f', '/andy'), '-f test fail');
+ok($fs->test('-d', '/andy'), '-d test success');
+ok(!$fs->test('-d', '/andy/innocent'), '-d test fail');
+ok(!$fs->test('-l', '/andy'), '-l test fail');
+ok(!$fs->test('-p', '/andy'), '-p test fail');
+ok(!$fs->test('-S', '/andy'), '-S test fail');
+ok(!$fs->test('-b', '/andy'), '-b test fail');
+ok(!$fs->test('-c', '/andy'), '-c test fail');
+ok(!$fs->test('-t', '/andy'), '-t test fail');
+ok(!$fs->test('-u', '/andy'), '-u test fail');
+ok(!$fs->test('-g', '/andy'), '-g test fail');
+ok(!$fs->test('-k', '/andy'), '-k test fail');
+ok($fs->test('-T', '/andy/innocent'), '-T test success');
+ok(!$fs->test('-T', '/andy/rita.jpg'), '-T test fail');
+ok($fs->test('-B', '/andy/rita.jpg'), '-B test success');
+ok(!$fs->test('-B', '/andy/innocent'), '-B test fail');
+sleep(1); # wait so we have something to count for these next 3 tests
+my $age = $fs->test('-M','/andy');
+ok($age > 0 && $age < 1, '-M test success');
+$age = $fs->test('-A','/andy');
+ok($age > 0 && $age < 1, '-A test success');
+$age = $fs->test('-C','/andy');
+ok($age > 0 && $age < 1, '-C test success');
+$session->user({userId=>3});
+
 
 # deletes
 ok($fs->delete('/andy/red/haywood/innocent.txt'), 'delete() success');
