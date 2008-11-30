@@ -170,6 +170,7 @@ ok($fs->rmdir('/andy/red/haywood'), 'delete() success');
 
 END {
     $andy->purge;
+    $session->close;
 }
 
 
